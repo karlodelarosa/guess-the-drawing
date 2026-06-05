@@ -151,25 +151,20 @@ class Room {
     return this.status === 'lobby' && this.getActivePlayers().length >= MIN_PLAYERS_TO_START;
   }
 
-  /** Host starts the game. */
-  startGame(hostId) {
-    const host = this.players.get(hostId);
-    if (!host || !host.isHost) return { error: 'Only the host can start the game.' };
-    if (!this.canStart()) return { error: `Need at least ${MIN_PLAYERS_TO_START} players to start.` };
-
-    const activePlayers = this.getActivePlayers();
-    this.game = new Game(activePlayers);
-    this.status = 'playing';
-    this.strokes = [];
+  /** Wire game event callbacks (used on start and after persistence restore). */
+  _wireGameCallbacks() {
+    if (!this.game) return;
 
     this.game.onRoundEnd = (data) => {
       this._broadcastEvent('round_end', data);
       if (this._broadcastRoomState) this._broadcastRoomState();
+      if (this._onPersist) this._onPersist();
     };
     this.game.onGameEnd = (data) => {
       this.status = 'finished';
       this._broadcastEvent('game_end', data);
       if (this._broadcastRoomState) this._broadcastRoomState();
+      if (this._onPersist) this._onPersist();
     };
     this.game.onStateChange = (event) => {
       if (event === 'round_start') {
@@ -184,8 +179,39 @@ class Room {
       }
       this._broadcastEvent(event, this.game.toJSON(null));
       if (this._broadcastRoomState) this._broadcastRoomState();
+      if (this._onPersist) this._onPersist();
     };
+  }
 
+  /** Resume round timers after loading from storage. */
+  _restoreGameTimers() {
+    if (!this.game) return;
+    const game = this.game;
+
+    if (game.phase === 'drawing' && game.roundEndTime) {
+      const remaining = game.roundEndTime - Date.now();
+      if (remaining <= 0) {
+        game._endRound('timer');
+      } else {
+        if (game.roundTimer) clearTimeout(game.roundTimer);
+        game.roundTimer = setTimeout(() => game._endRound('timer'), remaining);
+      }
+    } else if (game.phase === 'reveal') {
+      setTimeout(() => game._advanceToNextRound(), 2000);
+    }
+  }
+
+  /** Host starts the game. */
+  startGame(hostId) {
+    const host = this.players.get(hostId);
+    if (!host || !host.isHost) return { error: 'Only the host can start the game.' };
+    if (!this.canStart()) return { error: `Need at least ${MIN_PLAYERS_TO_START} players to start.` };
+
+    const activePlayers = this.getActivePlayers();
+    this.game = new Game(activePlayers);
+    this.status = 'playing';
+    this.strokes = [];
+    this._wireGameCallbacks();
     this.game.start();
     return { success: true };
   }

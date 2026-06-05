@@ -73,10 +73,17 @@ async function autoJoinFromUrl(roomId, name) {
   await joinOrReconnect(roomId, name);
 }
 
-/** Use reconnect_room — server transfers existing player or creates new join. */
+/** Join a room — tries fresh join first, then reconnect for returning players. */
 async function joinOrReconnect(roomId, name) {
   try {
     await socket.whenReady();
+    try {
+      const result = await socket.emit('join_room', { roomId, playerName: name });
+      joinCallback(result);
+      return;
+    } catch (err) {
+      if (err.message !== 'That name is already taken.') throw err;
+    }
     const result = await socket.emit('reconnect_room', { roomId, playerName: name });
     joinCallback(result);
   } catch (err) {

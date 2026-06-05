@@ -5,6 +5,8 @@ import RoomManager from '../../server/game/RoomManager.js';
 // @ts-expect-error — CJS import
 import { createHandlers } from '../../server/handlers.js';
 
+const STORAGE_KEY = 'room-manager-state';
+
 interface Session {
   socketId: string;
   roomId: string | null;
@@ -15,10 +17,11 @@ function generateId(): string {
 }
 
 /**
- * Global game coordinator — holds all rooms and WebSocket sessions.
+ * Global game coordinator — holds all rooms with durable persistence.
  */
 export class GameCoordinator extends DurableObject {
   roomManager: InstanceType<typeof RoomManager>;
+  loaded = false;
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env);
@@ -30,6 +33,27 @@ export class GameCoordinator extends DurableObject {
       emitToRoomExcept: (roomId, exceptId, event, data) =>
         this._emitToRoomExcept(roomId, exceptId, event, data),
     });
+
+    this.roomManager.onPersist = () => {
+      this.ctx.waitUntil(this._persist());
+    };
+
+    this.ctx.blockConcurrencyWhile(async () => {
+      await this._load();
+    });
+  }
+
+  async _load() {
+    const data = await this.ctx.storage.get(STORAGE_KEY);
+    if (data) {
+      this.roomManager.restore(data);
+    }
+    this.loaded = true;
+  }
+
+  async _persist() {
+    const snapshot = this.roomManager.snapshot();
+    await this.ctx.storage.put(STORAGE_KEY, snapshot);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -39,6 +63,7 @@ export class GameCoordinator extends DurableObject {
       return Response.json({
         status: 'ok',
         rooms: this.roomManager.rooms.size,
+        persisted: this.loaded,
       });
     }
 
@@ -91,6 +116,16 @@ export class GameCoordinator extends DurableObject {
 
     const result = await handler((parsed.data || {}) as never);
 
+    // Persist after every state-changing action
+    const mutating = [
+      'create_room', 'join_room', 'reconnect_room', 'leave_room',
+      'start_game', 'play_again', 'chat_message', 'draw_stroke',
+      'undo_stroke', 'clear_canvas', 'done_drawing', 'disconnect',
+    ];
+    if (mutating.includes(parsed.event)) {
+      await this._persist();
+    }
+
     if (parsed.id) {
       if (result?.error) this._ack(ws, parsed.id, { error: result.error });
       else this._ack(ws, parsed.id, result ?? { success: true });
@@ -103,6 +138,7 @@ export class GameCoordinator extends DurableObject {
 
     const handlers = createHandlers(this.roomManager, { socketId: session.socketId });
     handlers.disconnect();
+    await this._persist();
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {

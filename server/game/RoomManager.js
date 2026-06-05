@@ -1,4 +1,5 @@
 const Room = require('./Room');
+const { snapshotRoomManager, restoreRoomManager } = require('./persistence');
 
 /**
  * Manages all active game rooms and socket event routing.
@@ -13,6 +14,17 @@ class RoomManager {
     this.socketToName = new Map();
     /** @type {import('./Broadcast').BroadcastAPI|null} */
     this.broadcast = null;
+    this.onPersist = null;
+  }
+
+  /** Serialize all rooms for durable storage. */
+  snapshot() {
+    return snapshotRoomManager(this);
+  }
+
+  /** Restore rooms from durable storage. */
+  restore(data) {
+    restoreRoomManager(this, data);
   }
 
   /** Attach broadcast transport (Socket.IO or WebSocket). */
@@ -56,6 +68,7 @@ class RoomManager {
       this.broadcast?.emitToRoom(room.id, event, data);
     };
     room._broadcastRoomState = () => this._broadcastRoomState(room);
+    room._onPersist = () => this.onPersist?.();
   }
 
   /**
@@ -109,6 +122,7 @@ class RoomManager {
     const systemMsg = room.addSystemMessage(`${player.name} joined the room.`);
     this.broadcast?.emitToRoom(room.id, 'chat_message', systemMsg);
     this._broadcastRoomState(room);
+    this.onPersist?.();
 
     return { success: true, room: room.toJSON(socketId), player: player.toJSON() };
   }
@@ -147,6 +161,7 @@ class RoomManager {
     } else {
       this._broadcastRoomState(room);
     }
+    this.onPersist?.();
   }
 
   /**

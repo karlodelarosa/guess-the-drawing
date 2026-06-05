@@ -6,10 +6,11 @@
  * @param {import('./game/RoomManager')} roomManager
  * @param {object} ctx
  * @param {string} ctx.socketId
- * @param {(roomId: string) => void} [ctx.joinRoom]
+ * @param {(roomId: string|null) => void} [ctx.joinRoom]
+ * @param {() => void} [ctx.clearRoom]
  */
 function createHandlers(roomManager, ctx) {
-  const { socketId, joinRoom } = ctx;
+  const { socketId, joinRoom, clearRoom } = ctx;
 
   return {
     create_room({ playerName }) {
@@ -151,6 +152,7 @@ function createHandlers(roomManager, ctx) {
 
     leave_room() {
       roomManager.leaveRoom(socketId);
+      clearRoom?.();
       return { success: true };
     },
 

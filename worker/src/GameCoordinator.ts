@@ -73,8 +73,12 @@ export class GameCoordinator extends DurableObject {
 
     const handlers = createHandlers(this.roomManager, {
       socketId: session.socketId,
-      joinRoom: (roomId: string) => {
+      joinRoom: (roomId: string | null) => {
         session.roomId = roomId;
+        ws.serializeAttachment(session);
+      },
+      clearRoom: () => {
+        session.roomId = null;
         ws.serializeAttachment(session);
       },
     });

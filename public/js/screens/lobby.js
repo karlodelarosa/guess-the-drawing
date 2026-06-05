@@ -4,7 +4,7 @@
 
 import * as socket from '../socket.js';
 import { showToast } from '../ui/toast.js';
-import { getRoomFromURL } from '../utils/storage.js';
+import { getRoomFromURL, getSession } from '../utils/storage.js';
 
 const nameInput = () => document.getElementById('player-name');
 const roomCodeInput = () => document.getElementById('room-code');
@@ -23,7 +23,7 @@ export function init(onJoined) {
   const saved = sessionStorage.getItem('gtd_playerName');
   if (saved) nameInput().value = saved;
 
-  // Always auto-join when invite link contains a room code
+  // Auto-join from invite link (fresh open — beforeReady hook skips when URL has room)
   if (roomFromURL && saved) {
     autoJoinFromUrl(roomFromURL, saved);
   }
@@ -49,7 +49,7 @@ export function init(onJoined) {
       showToast('Enter a room code', 'warning');
       return;
     }
-    await tryJoinRoom(roomId, name);
+    await joinOrReconnect(roomId, name);
   });
 
   roomCodeInput().addEventListener('input', (e) => {
@@ -70,27 +70,14 @@ export function init(onJoined) {
 async function autoJoinFromUrl(roomId, name) {
   if (autoJoinStarted) return;
   autoJoinStarted = true;
-
-  try {
-    await socket.whenReady();
-    // Try reconnect first (returning player), fall back to fresh join
-    try {
-      const result = await socket.emit('reconnect_room', { roomId, playerName: name });
-      joinCallback(result);
-      return;
-    } catch {
-      // Not a returning player — join as new
-    }
-    await tryJoinRoom(roomId, name);
-  } catch (err) {
-    showToast(err.message, 'warning');
-  }
+  await joinOrReconnect(roomId, name);
 }
 
-async function tryJoinRoom(roomId, name) {
+/** Use reconnect_room — server transfers existing player or creates new join. */
+async function joinOrReconnect(roomId, name) {
   try {
     await socket.whenReady();
-    const result = await socket.emit('join_room', { roomId, playerName: name });
+    const result = await socket.emit('reconnect_room', { roomId, playerName: name });
     joinCallback(result);
   } catch (err) {
     showToast(err.message, 'warning');

@@ -65,7 +65,13 @@ class RoomManager {
    */
   getRoomForSocket(socketId) {
     const roomId = this.socketToRoom.get(socketId);
-    return roomId ? this.rooms.get(roomId) : null;
+    if (roomId) return this.rooms.get(roomId) || null;
+
+    // Fallback: socketToRoom may be stale after WebSocket reconnect
+    for (const room of this.rooms.values()) {
+      if (room.players.has(socketId)) return room;
+    }
+    return null;
   }
 
   /**
@@ -170,32 +176,34 @@ class RoomManager {
     const room = this.getRoom(roomId);
     if (!room) return { error: 'Room not found.' };
 
-    // Find disconnected player with matching name
-    const disconnected = [...room.players.values()].find(
-      (p) => !p.connected && p.name.toLowerCase() === playerName.trim().toLowerCase()
+    const trimmed = playerName.trim();
+    const existing = [...room.players.values()].find(
+      (p) => p.name.toLowerCase() === trimmed.toLowerCase()
     );
 
-    if (!disconnected) {
-      // Fall back to normal join
-      return this.joinRoom(newSocketId, roomId, playerName);
+    if (existing) {
+      const oldId = existing.id;
+      if (oldId !== newSocketId) {
+        room.reconnectPlayer(oldId, newSocketId);
+        this.socketToRoom.delete(oldId);
+      }
+      existing.connected = true;
+      this.socketToRoom.set(newSocketId, room.id);
+      this.socketToName.set(newSocketId, trimmed);
+
+      const systemMsg = room.addSystemMessage(`${existing.name} reconnected.`);
+      this.broadcast?.emitToRoom(room.id, 'chat_message', systemMsg);
+      this._broadcastRoomState(room);
+
+      return {
+        success: true,
+        reconnected: true,
+        room: room.toJSON(newSocketId),
+        player: existing.toJSON(),
+      };
     }
 
-    const oldId = disconnected.id;
-    const player = room.reconnectPlayer(oldId, newSocketId);
-    this.socketToRoom.delete(oldId);
-    this.socketToRoom.set(newSocketId, room.id);
-    this.socketToName.set(newSocketId, playerName.trim());
-
-    const systemMsg = room.addSystemMessage(`${player.name} reconnected.`);
-    this.broadcast?.emitToRoom(room.id, 'chat_message', systemMsg);
-    this._broadcastRoomState(room);
-
-    return {
-      success: true,
-      reconnected: true,
-      room: room.toJSON(newSocketId),
-      player: player.toJSON(),
-    };
+    return this.joinRoom(newSocketId, roomId, playerName);
   }
 
   /** Broadcast full room state to all players (personalized word visibility). */

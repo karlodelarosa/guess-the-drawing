@@ -83,6 +83,9 @@ wss.on('connection', (ws) => {
       joinRoom: (roomId) => {
         if (session) session.roomId = roomId;
       },
+      clearRoom: () => {
+        if (session) session.roomId = null;
+      },
     });
 
     const handler = handlers[parsed.event];

@@ -14,13 +14,11 @@ import { saveSession, getSession, clearSession } from './utils/storage.js';
 import { setRoomInUrl } from './utils/config.js';
 import { playCorrectGuess, playRoundStart, playRoundEnd } from './utils/sounds.js';
 
-// ---- Application state ----
 let roomState = null;
 let myPlayer = null;
 let myId = null;
 let currentScreen = 'lobby';
 
-// ---- Screen management ----
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach((el) => el.classList.remove('active'));
   const screenMap = {
@@ -32,33 +30,59 @@ function showScreen(name) {
   currentScreen = name;
 }
 
-// ---- Initialize everything ----
+function clearRoomFromUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('room');
+  history.replaceState(null, '', url.pathname + url.search);
+}
+
 function init() {
+  // Re-establish server room mapping after every WebSocket (re)connect
+  socket.setBeforeReadyHook(async ({ isReconnect }) => {
+    const session = getSession();
+    if (!session.roomId || !session.playerName) return;
+
+    // Let lobby handle fresh invite-link opens
+    const urlRoom = new URLSearchParams(window.location.search).get('room');
+    if (!isReconnect && urlRoom) return;
+
+    try {
+      const result = await socket.request('reconnect_room', {
+        roomId: session.roomId,
+        playerName: session.playerName,
+      });
+      handleJoined(result);
+    } catch (err) {
+      if (err.message === 'Room not found.') {
+        clearSession();
+        clearRoomFromUrl();
+        roomState = null;
+        myPlayer = null;
+        showScreen('lobby');
+      }
+    }
+  });
+
   socket.connect();
 
-  // Canvas
   canvas.init({
     onStroke: (stroke) => socket.emit('draw_stroke', stroke).catch(() => {}),
     onUndo: () => socket.emit('undo_stroke').catch((err) => showToast(err.message, 'warning')),
     onClear: () => socket.emit('clear_canvas').catch((err) => showToast(err.message, 'warning')),
   });
 
-  // Lobby
   lobby.init(handleJoined);
 
-  // Waiting room
   waiting.init({
     onStart: handleStartGame,
     onLeave: handleLeave,
   });
 
-  // Results modal
   results.init({
     onPlayAgain: handlePlayAgain,
     onBackLobby: handleBackToLobby,
   });
 
-  // Chat
   chat.onSubmit((message) => {
     socket.emit('chat_message', { message }).catch(() => {});
   });
@@ -66,10 +90,8 @@ function init() {
     socket.emit('typing', { isTyping }).catch(() => {});
   });
 
-  // Leave game button
   document.getElementById('btn-leave-game').addEventListener('click', handleLeave);
 
-  // Done drawing button
   document.getElementById('btn-done-drawing').addEventListener('click', async () => {
     try {
       await socket.emit('done_drawing');
@@ -79,25 +101,15 @@ function init() {
     }
   });
 
-  // Socket events
   registerSocketEvents();
-
-  // Attempt reconnect if session exists (wait for socket first)
-  attemptReconnect();
 }
 
-/** Clear room from URL when leaving. */
-function clearRoomFromUrl() {
-  const url = new URL(window.location.href);
-  url.searchParams.delete('room');
-  history.replaceState(null, '', url.pathname + url.search);
-}
-
-/** Handle successful room join. */
 function handleJoined(result) {
+  if (!result?.room || !result?.player) return;
+
   roomState = result.room;
   myPlayer = result.player;
-  myId = result.player?.id || socket.getSocket().id;
+  myId = result.player.id;
   saveSession(myPlayer.name, roomState.id);
   setRoomInUrl(roomState.id);
 
@@ -109,19 +121,13 @@ function handleJoined(result) {
   }
 }
 
-/** Enter the game screen from any state. */
 function enterGame() {
   showScreen('game');
   chat.loadHistory(roomState.chatHistory);
   canvas.loadStrokes(roomState.strokes);
   updateGameUI();
-
-  if (roomState.status === 'finished' && roomState.game?.phase === 'finished') {
-    // Don't re-show results on reconnect unless we have rankings
-  }
 }
 
-/** Update game UI from current room state. */
 function updateGameUI() {
   if (!roomState || !myPlayer) return;
   const uiState = gameScreen.update(roomState, myPlayer, myId);
@@ -139,9 +145,9 @@ function updateGameUI() {
   });
 }
 
-/** Host starts the game. */
 async function handleStartGame() {
   try {
+    await socket.whenReady();
     await socket.emit('start_game');
     enterGame();
   } catch (err) {
@@ -149,7 +155,6 @@ async function handleStartGame() {
   }
 }
 
-/** Play again after game ends. */
 async function handlePlayAgain() {
   try {
     await socket.emit('play_again');
@@ -161,13 +166,13 @@ async function handlePlayAgain() {
   }
 }
 
-/** Leave room and return to lobby. */
 function handleLeave() {
   socket.emit('leave_room').catch(() => {});
   clearSession();
   clearRoomFromUrl();
   roomState = null;
   myPlayer = null;
+  myId = null;
   results.hide();
   showScreen('lobby');
 }
@@ -176,7 +181,6 @@ function handleBackToLobby() {
   handleLeave();
 }
 
-/** Register all server → client socket events. */
 function registerSocketEvents() {
   socket.on('room_state', (state) => {
     roomState = state;
@@ -199,9 +203,7 @@ function registerSocketEvents() {
     }
   });
 
-  socket.on('chat_message', (entry) => {
-    chat.addMessage(entry);
-  });
+  socket.on('chat_message', (entry) => chat.addMessage(entry));
 
   socket.on('player_typing', ({ playerId, playerName, isTyping }) => {
     chat.setTyping(playerId, playerName, isTyping);
@@ -233,68 +235,9 @@ function registerSocketEvents() {
     results.show(data, myPlayer?.isHost);
   });
 
-  // Drawing sync
-  socket.on('draw_stroke', (stroke) => {
-    canvas.addStroke(stroke);
-  });
-
-  socket.on('undo_stroke', ({ strokeId }) => {
-    canvas.removeStroke(strokeId);
-  });
-
-  socket.on('clear_canvas', () => {
-    canvas.clear();
-  });
-
-  // Reconnect on socket disconnect/reconnect (mid-game only)
-  const tryReconnect = async () => {
-    if (!roomState) return;
-    const session = getSession();
-    if (!session.roomId || !session.playerName) return;
-    try {
-      await socket.whenReady();
-      const result = await socket.emit('reconnect_room', {
-        roomId: session.roomId,
-        playerName: session.playerName,
-      });
-      handleJoined(result);
-      showToast('Reconnected!', 'success');
-    } catch {
-      // Room may have ended — stay on current screen
-    }
-  };
-
-  socket.on('reconnected', () => {
-    tryReconnect();
-  });
+  socket.on('draw_stroke', (stroke) => canvas.addStroke(stroke));
+  socket.on('undo_stroke', ({ strokeId }) => canvas.removeStroke(strokeId));
+  socket.on('clear_canvas', () => canvas.clear());
 }
 
-/** Try to reconnect to a previous session (page refresh, no ?room in URL). */
-async function attemptReconnect() {
-  const session = getSession();
-  if (!session.roomId || !session.playerName) return;
-
-  // If URL has a room param, let lobby auto-join handle it
-  const urlRoom = new URLSearchParams(window.location.search).get('room');
-  if (urlRoom) return;
-
-  try {
-    await socket.whenReady();
-    const result = await socket.emit('reconnect_room', {
-      roomId: session.roomId,
-      playerName: session.playerName,
-    });
-    handleJoined(result);
-    if (result.reconnected) {
-      showToast('Reconnected!', 'success');
-    }
-  } catch (err) {
-    // Only clear session if the room truly doesn't exist
-    if (err.message === 'Room not found.') {
-      clearSession();
-    }
-  }
-}
-
-// Boot
 init();

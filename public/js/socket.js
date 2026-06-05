@@ -1,6 +1,5 @@
 /**
  * WebSocket connection wrapper with promise-based emits.
- * Compatible with Cloudflare Workers and local Node server.
  */
 
 let ws = null;
@@ -8,11 +7,9 @@ let socketId = null;
 let connected = false;
 let reconnectTimer = null;
 let readyResolvers = [];
+let beforeReadyHook = null;
 
-/** Event listeners registry. */
 const listeners = new Map();
-
-/** Pending ack callbacks keyed by message id. */
 const pendingAcks = new Map();
 let msgCounter = 0;
 
@@ -21,7 +18,11 @@ function getWsUrl() {
   return `${protocol}//${window.location.host}/ws`;
 }
 
-/** Resolve when the socket is open and has a server-assigned ID. */
+/** Hook runs after server assigns socketId, before any emit resolves. */
+export function setBeforeReadyHook(fn) {
+  beforeReadyHook = fn;
+}
+
 export function whenReady() {
   if (connected && socketId) return Promise.resolve();
   return new Promise((resolve) => {
@@ -36,17 +37,32 @@ function notifyReady() {
   resolvers.forEach((r) => r());
 }
 
+/** Send a request on the raw WebSocket (used during reconnect before ready). */
+export function request(event, data = {}) {
+  return new Promise((resolve, reject) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      return reject(new Error('Not connected'));
+    }
+    const id = String(++msgCounter);
+    pendingAcks.set(id, { resolve, reject });
+    ws.send(JSON.stringify({ type: 'emit', event, data, id }));
+    setTimeout(() => {
+      if (pendingAcks.has(id)) {
+        pendingAcks.delete(id);
+        reject(new Error('Request timed out'));
+      }
+    }, 10_000);
+  });
+}
+
 export function connect() {
   if (ws && connected) return ws;
-
-  // Avoid duplicate connections while reconnecting
   if (ws && ws.readyState === WebSocket.CONNECTING) return ws;
 
   ws = new WebSocket(getWsUrl());
 
   ws.addEventListener('open', () => {
     connected = true;
-    console.log('[socket] open');
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
@@ -62,12 +78,7 @@ export function connect() {
     }
 
     if (msg.type === 'connected') {
-      const wasConnected = !!socketId;
-      socketId = msg.socketId;
-      console.log('[socket] ready', socketId);
-      fire('connect');
-      notifyReady();
-      if (wasConnected) fire('reconnected');
+      handleConnected(msg.socketId);
       return;
     }
 
@@ -89,20 +100,32 @@ export function connect() {
   ws.addEventListener('close', () => {
     connected = false;
     socketId = null;
-    console.log('[socket] disconnected');
     fire('disconnect');
 
     reconnectTimer = setTimeout(() => {
       ws = null;
       connect();
-    }, 2000);
-  });
-
-  ws.addEventListener('error', () => {
-    // close handler will fire reconnect
+    }, 1500);
   });
 
   return ws;
+}
+
+async function handleConnected(newSocketId) {
+  const prevId = socketId;
+  socketId = newSocketId;
+
+  if (beforeReadyHook) {
+    try {
+      await beforeReadyHook({ prevId, socketId: newSocketId, isReconnect: !!prevId });
+    } catch (err) {
+      console.error('[socket] beforeReady failed', err);
+    }
+  }
+
+  fire('connect');
+  notifyReady();
+  if (prevId) fire('reconnected');
 }
 
 function fire(event, data) {
@@ -120,16 +143,5 @@ export function on(event, handler) {
 }
 
 export function emit(event, data = {}) {
-  return whenReady().then(() => new Promise((resolve, reject) => {
-    const id = String(++msgCounter);
-    pendingAcks.set(id, { resolve, reject });
-    ws.send(JSON.stringify({ type: 'emit', event, data, id }));
-
-    setTimeout(() => {
-      if (pendingAcks.has(id)) {
-        pendingAcks.delete(id);
-        reject(new Error('Request timed out'));
-      }
-    }, 10_000);
-  }));
+  return whenReady().then(() => request(event, data));
 }

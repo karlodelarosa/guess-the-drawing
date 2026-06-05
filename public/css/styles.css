@@ -357,13 +357,94 @@ body {
   text-overflow: ellipsis;
 }
 
-.drawer-name {
-  font-size: 13px;
-  color: var(--text-muted);
+.drawer-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--warning);
+  background: rgba(253, 203, 110, 0.12);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(253, 203, 110, 0.3);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
+
+.drawer-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+  animation: pulse 1.2s ease infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+
+.drawer-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: linear-gradient(90deg, rgba(108, 92, 231, 0.2), rgba(0, 206, 201, 0.2));
+  border-bottom: 1px solid var(--border);
+  font-size: 15px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.drawer-banner.guesser-mode {
+  background: linear-gradient(90deg, rgba(0, 184, 148, 0.15), rgba(108, 92, 231, 0.15));
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.drawer-banner-icon { font-size: 20px; }
+
+.share-hint {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.invite-link-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.invite-link {
+  font-size: 12px;
+  color: var(--accent);
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.chat-instructions {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  background: rgba(108, 92, 231, 0.08);
+  border-bottom: 1px solid var(--border);
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+
+.chat-instructions strong { color: var(--accent); }
 
 /* Timer */
 .timer {
@@ -436,13 +517,24 @@ body {
   opacity: 0.5;
 }
 
-.scoreboard-list li.drawing .player-name {
+.scoreboard-list li.drawing .player-name,
+.scoreboard-list li.is-drawer .player-name {
   font-weight: 700;
 }
 
-.scoreboard-list li.drawing::after {
-  content: '✏️';
-  font-size: 12px;
+.scoreboard-list li.is-drawer {
+  background: rgba(253, 203, 110, 0.1);
+  border: 1px solid rgba(253, 203, 110, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px !important;
+  margin-bottom: 4px;
+}
+
+.scoreboard-list li.is-drawer::after {
+  content: '✏️ Drawing';
+  font-size: 11px;
+  color: var(--warning);
+  font-weight: 600;
 }
 
 /* Canvas section */
@@ -516,9 +608,9 @@ body {
   flex: 1;
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 8px;
+  padding: 4px;
   min-height: 0;
 }
 
@@ -527,8 +619,8 @@ body {
   border-radius: var(--radius-sm);
   cursor: crosshair;
   touch-action: none;
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
   box-shadow: var(--shadow);
 }
 
@@ -748,9 +840,10 @@ body {
 
   .sidebar-left {
     width: 100%;
-    max-height: 120px;
+    max-height: 90px;
     border: none;
     border-bottom: 1px solid var(--border);
+    order: 1;
   }
 
   .sidebar-left .scoreboard-list {
@@ -758,7 +851,7 @@ body {
     flex-wrap: nowrap;
     overflow-x: auto;
     gap: 8px;
-    padding: 8px;
+    padding: 6px 8px;
   }
 
   .sidebar-left .scoreboard-list li {
@@ -769,14 +862,22 @@ body {
     background: var(--bg);
   }
 
-  .sidebar-right {
-    width: 100%;
-    height: 180px;
-    border: none;
-    border-top: 1px solid var(--border);
+  .canvas-section {
+    order: 2;
+    flex: 1;
+    min-height: 45vh;
   }
 
-  .canvas-section { min-height: 200px; }
+  .sidebar-right {
+    width: 100%;
+    height: auto;
+    max-height: 28vh;
+    border: none;
+    border-top: 1px solid var(--border);
+    order: 3;
+  }
+
+  .chat-messages { max-height: 12vh; }
 
   .game-header {
     flex-wrap: wrap;
@@ -786,14 +887,19 @@ body {
 
   .header-center { max-width: none; order: 3; width: 100%; }
 
-  .canvas-toolbar { gap: 8px; padding: 6px 10px; }
+  .canvas-toolbar { gap: 6px; padding: 6px 8px; }
+
+  #btn-done-drawing { font-size: 12px; padding: 6px 10px; }
 
   .lobby-card { padding: 24px 20px; }
 
   .logo h1 { font-size: 1.5rem; }
+
+  .drawer-banner { font-size: 13px; padding: 8px 12px; }
 }
 
 @media (max-width: 480px) {
-  .sidebar-right { height: 150px; }
+  .canvas-section { min-height: 50vh; }
   .tool-group label { display: none; }
+  .sidebar-left { max-height: 72px; }
 }

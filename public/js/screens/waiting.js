@@ -4,13 +4,23 @@
 
 import { renderPlayerList } from '../ui/playerList.js';
 import { showToast } from '../ui/toast.js';
+import { getInviteUrl, setRoomInUrl } from '../utils/config.js';
 
 let currentRoomId = '';
 
 export function show(roomState, myPlayer) {
   currentRoomId = roomState.id;
   document.getElementById('display-room-id').textContent = roomState.id;
+  setRoomInUrl(roomState.id);
+  updateInviteLink();
   update(roomState, myPlayer);
+}
+
+function updateInviteLink() {
+  const url = getInviteUrl(currentRoomId);
+  const linkEl = document.getElementById('invite-link');
+  linkEl.href = url;
+  linkEl.textContent = url;
 }
 
 export function update(roomState, myPlayer) {
@@ -47,11 +57,19 @@ export function init({ onStart, onLeave }) {
   document.getElementById('btn-leave-room').addEventListener('click', onLeave);
 
   document.getElementById('btn-copy-link').addEventListener('click', () => {
-    const url = `${window.location.origin}?room=${currentRoomId}`;
-    navigator.clipboard.writeText(url).then(() => {
-      showToast('Invite link copied!', 'success');
-    }).catch(() => {
-      showToast(url, 'info', 5000);
-    });
+    const url = getInviteUrl(currentRoomId);
+    copyText(url, 'Invite link copied! Share with friends on their phones.');
+  });
+
+  document.getElementById('btn-copy-code').addEventListener('click', () => {
+    copyText(currentRoomId, 'Room code copied!');
+  });
+}
+
+function copyText(text, successMsg) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(successMsg, 'success');
+  }).catch(() => {
+    showToast(text, 'info', 6000);
   });
 }

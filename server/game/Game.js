@@ -77,7 +77,7 @@ class Game {
    * @param {string} guess
    */
   normalizeGuess(guess) {
-    return guess.trim().toLowerCase();
+    return guess.trim().toLowerCase().replace(/\s+/g, ' ');
   }
 
   /**
@@ -141,8 +141,20 @@ class Game {
   }
 
   /**
+   * Drawer ends the round early.
+   * @param {string} drawerId
+   * @returns {boolean}
+   */
+  finishDrawing(drawerId) {
+    if (this.phase !== 'drawing') return false;
+    if (drawerId !== this.getCurrentDrawerId()) return false;
+    this._endRound('drawer_done');
+    return true;
+  }
+
+  /**
    * End the current round.
-   * @param {'timer' | 'all_guessed'} reason
+   * @param {'timer' | 'all_guessed' | 'drawer_done'} reason
    */
   _endRound(reason) {
     if (this.phase !== 'drawing') return;

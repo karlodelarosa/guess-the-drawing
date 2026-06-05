@@ -20,7 +20,10 @@ export function renderPlayerList(listEl, players, options = {}) {
   for (const player of sorted) {
     const li = document.createElement('li');
 
-    if (drawerId === player.id) li.classList.add('drawing');
+    if (drawerId === player.id) {
+      li.classList.add('drawing');
+      li.classList.add('is-drawer');
+    }
     if (player.hasGuessedCorrectly) li.classList.add('guessed');
     if (!player.connected) li.style.opacity = '0.4';
 

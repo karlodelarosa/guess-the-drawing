@@ -40,7 +40,7 @@ function createHandlers(roomManager, ctx) {
       const result = room.startGame(socketId);
       if (result.error) return result;
 
-      room.addSystemMessage('Game started! Get ready to draw!');
+      room.addSystemMessage('Game started! Type your guess in the chat box and press Send.');
       roomManager.broadcastRoomState(room);
       roomManager.broadcast?.emitToRoom(room.id, 'round_start', room.game.toJSON(null));
       return { success: true };
@@ -130,6 +130,22 @@ function createHandlers(roomManager, ctx) {
       if (!cleared) return { error: 'Not allowed.' };
 
       roomManager.broadcast?.emitToRoom(room.id, 'clear_canvas');
+      return { success: true };
+    },
+
+    done_drawing() {
+      const room = roomManager.getRoomForSocket(socketId);
+      if (!room) return { error: 'Not in a room.' };
+
+      const result = room.finishDrawing(socketId);
+      if (result.error) return result;
+
+      const player = room.players.get(socketId);
+      const entry = room.addSystemMessage(
+        `${player?.name || 'Drawer'} finished drawing — revealing the answer!`
+      );
+      roomManager.broadcast?.emitToRoom(room.id, 'chat_message', entry);
+      roomManager.broadcastRoomState(room);
       return { success: true };
     },
 

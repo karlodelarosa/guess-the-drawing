@@ -181,6 +181,7 @@ class RoomManager {
 
     const oldId = disconnected.id;
     const player = room.reconnectPlayer(oldId, newSocketId);
+    this.socketToRoom.delete(oldId);
     this.socketToRoom.set(newSocketId, room.id);
     this.socketToName.set(newSocketId, playerName.trim());
 

@@ -57,15 +57,20 @@ export function init(callbacks) {
   });
 }
 
-/** Resize canvas to fit wrapper while maintaining aspect ratio. */
+/** Resize canvas to fill as much space as possible. */
 function resizeCanvas() {
   const wrapper = canvas.parentElement;
-  const ratio = 16 / 10;
-  let w = wrapper.clientWidth - 16;
-  let h = wrapper.clientHeight - 16;
+  const isMobile = window.innerWidth <= 768;
+  const padding = isMobile ? 4 : 8;
+  let w = wrapper.clientWidth - padding * 2;
+  let h = wrapper.clientHeight - padding * 2;
 
-  if (w / h > ratio) w = h * ratio;
-  else h = w / ratio;
+  // On mobile, use full area; on desktop prefer wide canvas
+  if (!isMobile) {
+    const ratio = 4 / 3;
+    if (w / h > ratio) w = h * ratio;
+    else h = w / ratio;
+  }
 
   // Preserve existing content if canvas already has size
   let imageData = null;

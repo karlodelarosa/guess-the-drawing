@@ -49,7 +49,12 @@
         <div class="room-info">
           <span class="room-label">Room Code:</span>
           <span id="display-room-id" class="room-code"></span>
-          <button id="btn-copy-link" class="btn btn-icon" title="Copy invite link">📋</button>
+          <button id="btn-copy-code" class="btn btn-icon" title="Copy room code">📋</button>
+        </div>
+        <p class="share-hint">Friends must open this exact link to join:</p>
+        <div class="invite-link-box">
+          <a id="invite-link" class="invite-link" href="#" target="_blank"></a>
+          <button id="btn-copy-link" class="btn btn-primary btn-sm">Copy Link</button>
         </div>
       </div>
 
@@ -82,10 +87,15 @@
         </div>
       </div>
       <div class="header-right">
-        <span id="drawer-name" class="drawer-name"></span>
+        <div id="drawer-badge" class="drawer-badge hidden"></div>
         <button id="btn-leave-game" class="btn btn-ghost btn-sm">Leave</button>
       </div>
     </header>
+
+    <div id="drawer-banner" class="drawer-banner hidden">
+      <span class="drawer-banner-icon">✏️</span>
+      <span id="drawer-banner-text">Your turn to draw!</span>
+    </div>
 
     <main class="game-main">
       <!-- Player list sidebar -->
@@ -113,6 +123,7 @@
           <div class="tool-group tool-actions">
             <button id="btn-undo" class="btn btn-tool" title="Undo">↩</button>
             <button id="btn-clear" class="btn btn-tool" title="Clear canvas">🗑</button>
+            <button id="btn-done-drawing" class="btn btn-primary btn-sm hidden">Done Drawing</button>
           </div>
         </div>
         <div class="canvas-wrapper">
@@ -129,11 +140,14 @@
 
       <!-- Chat sidebar -->
       <aside class="sidebar sidebar-right">
-        <h3>Chat</h3>
+        <h3>Guesses &amp; Chat</h3>
+        <p id="chat-instructions" class="chat-instructions">
+          Type the word you think is being drawn in the box below, then press <strong>Send</strong>. Match the full word exactly (e.g. "pizza").
+        </p>
         <div id="chat-messages" class="chat-messages"></div>
         <div id="typing-indicator" class="typing-indicator"></div>
         <form id="chat-form" class="chat-form">
-          <input type="text" id="chat-input" placeholder="Type your guess..." maxlength="100" autocomplete="off">
+          <input type="text" id="chat-input" placeholder="Type your guess here..." maxlength="100" autocomplete="off">
           <button type="submit" class="btn btn-primary btn-sm">Send</button>
         </form>
       </aside>

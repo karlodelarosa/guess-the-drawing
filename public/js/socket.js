@@ -32,6 +32,7 @@ export function connect() {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
+    // Server sends socketId in first message — don't fire 'connect' until then
   });
 
   ws.addEventListener('message', (event) => {
@@ -43,8 +44,11 @@ export function connect() {
     }
 
     if (msg.type === 'connected') {
+      const wasConnected = !!socketId;
       socketId = msg.socketId;
       fire('connect');
+      // Re-join room after unexpected reconnect
+      if (wasConnected) fire('reconnected');
       return;
     }
 

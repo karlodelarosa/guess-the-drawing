@@ -175,6 +175,12 @@ class Room {
       if (event === 'round_start') {
         this.clearStrokes();
         this._broadcastEvent('clear_canvas');
+        const drawer = this.players.get(this.game.getCurrentDrawerId());
+        const drawerName = drawer ? drawer.name : 'Someone';
+        const entry = this.addSystemMessage(
+          `Round ${this.game.currentRound}: ${drawerName} is drawing! Type your guess in the chat box and press Send.`
+        );
+        this._broadcastEvent('chat_message', entry);
       }
       this._broadcastEvent(event, this.game.toJSON(null));
       if (this._broadcastRoomState) this._broadcastRoomState();
@@ -298,6 +304,14 @@ class Room {
   /** Clear strokes between rounds. */
   clearStrokes() {
     this.strokes = [];
+  }
+
+  /** Current drawer ends the round early. */
+  finishDrawing(drawerId) {
+    if (!this.game) return { error: 'No active game.' };
+    const ok = this.game.finishDrawing(drawerId);
+    if (!ok) return { error: 'Only the current drawer can end the round.' };
+    return { success: true };
   }
 
   /** Serialize room state for a specific player. */

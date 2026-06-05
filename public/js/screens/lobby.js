@@ -4,12 +4,16 @@
 
 import * as socket from '../socket.js';
 import { showToast } from '../ui/toast.js';
-import { getRoomFromURL } from '../utils/storage.js';
+import { getRoomFromURL, getSession } from '../utils/storage.js';
 
 const nameInput = () => document.getElementById('player-name');
 const roomCodeInput = () => document.getElementById('room-code');
 
+let joinCallback = null;
+
 export function init(onJoined) {
+  joinCallback = onJoined;
+
   // Pre-fill room code from URL if present
   const roomFromURL = getRoomFromURL();
   if (roomFromURL) {
@@ -19,6 +23,14 @@ export function init(onJoined) {
   // Restore saved name
   const saved = sessionStorage.getItem('gtd_playerName');
   if (saved) nameInput().value = saved;
+
+  // Auto-join from invite link when name is saved
+  if (roomFromURL && saved) {
+    const session = getSession();
+    if (!session.roomId || session.roomId !== roomFromURL) {
+      setTimeout(() => tryJoinRoom(roomFromURL, saved), 800);
+    }
+  }
 
   document.getElementById('btn-create-room').addEventListener('click', async () => {
     const name = getName();
@@ -40,13 +52,12 @@ export function init(onJoined) {
       showToast('Enter a room code', 'warning');
       return;
     }
+    await tryJoinRoom(roomId, name);
+  });
 
-    try {
-      const result = await socket.emit('join_room', { roomId, playerName: name });
-      onJoined(result);
-    } catch (err) {
-      showToast(err.message, 'warning');
-    }
+  // Auto-uppercase room code as user types
+  roomCodeInput().addEventListener('input', (e) => {
+    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   });
 
   // Enter key support
@@ -59,6 +70,15 @@ export function init(onJoined) {
       }
     }
   });
+}
+
+async function tryJoinRoom(roomId, name) {
+  try {
+    const result = await socket.emit('join_room', { roomId, playerName: name });
+    joinCallback(result);
+  } catch (err) {
+    showToast(err.message, 'warning');
+  }
 }
 
 function getName() {

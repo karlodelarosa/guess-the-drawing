@@ -11,6 +11,7 @@ import * as chat from './ui/chat.js';
 import * as canvas from './drawing/canvas.js';
 import { showToast } from './ui/toast.js';
 import { saveSession, getSession, clearSession } from './utils/storage.js';
+import { setRoomInUrl } from './utils/config.js';
 import { playCorrectGuess, playRoundStart, playRoundEnd } from './utils/sounds.js';
 
 // ---- Application state ----
@@ -68,6 +69,16 @@ function init() {
   // Leave game button
   document.getElementById('btn-leave-game').addEventListener('click', handleLeave);
 
+  // Done drawing button
+  document.getElementById('btn-done-drawing').addEventListener('click', async () => {
+    try {
+      await socket.emit('done_drawing');
+      showToast('Round ended — revealing answer...', 'info');
+    } catch (err) {
+      showToast(err.message, 'warning');
+    }
+  });
+
   // Socket events
   registerSocketEvents();
 
@@ -79,8 +90,9 @@ function init() {
 function handleJoined(result) {
   roomState = result.room;
   myPlayer = result.player;
-  myId = socket.getSocket().id || result.player?.id;
+  myId = result.player?.id || socket.getSocket().id;
   saveSession(myPlayer.name, roomState.id);
+  setRoomInUrl(roomState.id);
 
   if (roomState.status === 'playing' || roomState.status === 'finished') {
     enterGame();
@@ -108,8 +120,14 @@ function updateGameUI() {
   const uiState = gameScreen.update(roomState, myPlayer, myId);
 
   chat.configureInput({
-    placeholder: uiState.isDrawer ? 'You are drawing — no chatting!' : 'Type your guess...',
-    disabled: uiState.isDrawer || uiState.phase !== 'drawing',
+    placeholder: uiState.isDrawer
+      ? 'You are drawing — others guess in chat'
+      : uiState.isSpectator
+        ? 'Spectating — guesses count next game'
+        : uiState.hasGuessed
+          ? 'You guessed correctly!'
+          : 'Type your guess here...',
+    disabled: uiState.isDrawer || uiState.isSpectator || uiState.phase !== 'drawing' || uiState.hasGuessed,
     hasGuessed: uiState.hasGuessed,
   });
 }
@@ -154,7 +172,10 @@ function handleBackToLobby() {
 function registerSocketEvents() {
   socket.on('room_state', (state) => {
     roomState = state;
-    myPlayer = state.players.find((p) => p.id === myId) || myPlayer;
+    myPlayer = state.players.find((p) => p.id === myId)
+      || state.players.find((p) => p.name === myPlayer?.name)
+      || myPlayer;
+    if (myPlayer) myId = myPlayer.id;
 
     if (state.status === 'lobby') {
       results.hide();
@@ -218,17 +239,24 @@ function registerSocketEvents() {
   });
 
   // Reconnect on socket disconnect/reconnect (mid-game)
-  socket.on('connect', () => {
+  const tryReconnect = () => {
     const session = getSession();
-    if (session.roomId && session.playerName && roomState) {
-      socket.emit('reconnect_room', {
-        roomId: session.roomId,
-        playerName: session.playerName,
-      }).then((result) => {
-        handleJoined(result);
-        showToast('Reconnected!', 'success');
-      }).catch(() => {});
-    }
+    if (!session.roomId || !session.playerName) return;
+    socket.emit('reconnect_room', {
+      roomId: session.roomId,
+      playerName: session.playerName,
+    }).then((result) => {
+      handleJoined(result);
+      showToast('Reconnected!', 'success');
+    }).catch(() => {});
+  };
+
+  socket.on('connect', () => {
+    if (roomState) tryReconnect();
+  });
+
+  socket.on('reconnected', () => {
+    if (roomState) tryReconnect();
   });
 }
 

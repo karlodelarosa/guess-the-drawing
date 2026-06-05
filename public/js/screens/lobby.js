@@ -4,32 +4,28 @@
 
 import * as socket from '../socket.js';
 import { showToast } from '../ui/toast.js';
-import { getRoomFromURL, getSession } from '../utils/storage.js';
+import { getRoomFromURL } from '../utils/storage.js';
 
 const nameInput = () => document.getElementById('player-name');
 const roomCodeInput = () => document.getElementById('room-code');
 
 let joinCallback = null;
+let autoJoinStarted = false;
 
 export function init(onJoined) {
   joinCallback = onJoined;
 
-  // Pre-fill room code from URL if present
   const roomFromURL = getRoomFromURL();
   if (roomFromURL) {
     roomCodeInput().value = roomFromURL;
   }
 
-  // Restore saved name
   const saved = sessionStorage.getItem('gtd_playerName');
   if (saved) nameInput().value = saved;
 
-  // Auto-join from invite link when name is saved
+  // Always auto-join when invite link contains a room code
   if (roomFromURL && saved) {
-    const session = getSession();
-    if (!session.roomId || session.roomId !== roomFromURL) {
-      setTimeout(() => tryJoinRoom(roomFromURL, saved), 800);
-    }
+    autoJoinFromUrl(roomFromURL, saved);
   }
 
   document.getElementById('btn-create-room').addEventListener('click', async () => {
@@ -37,6 +33,7 @@ export function init(onJoined) {
     if (!name) return;
 
     try {
+      await socket.whenReady();
       const result = await socket.emit('create_room', { playerName: name });
       onJoined(result);
     } catch (err) {
@@ -55,12 +52,10 @@ export function init(onJoined) {
     await tryJoinRoom(roomId, name);
   });
 
-  // Auto-uppercase room code as user types
   roomCodeInput().addEventListener('input', (e) => {
     e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   });
 
-  // Enter key support
   nameInput().addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       if (roomCodeInput().value.trim()) {
@@ -72,8 +67,29 @@ export function init(onJoined) {
   });
 }
 
+async function autoJoinFromUrl(roomId, name) {
+  if (autoJoinStarted) return;
+  autoJoinStarted = true;
+
+  try {
+    await socket.whenReady();
+    // Try reconnect first (returning player), fall back to fresh join
+    try {
+      const result = await socket.emit('reconnect_room', { roomId, playerName: name });
+      joinCallback(result);
+      return;
+    } catch {
+      // Not a returning player — join as new
+    }
+    await tryJoinRoom(roomId, name);
+  } catch (err) {
+    showToast(err.message, 'warning');
+  }
+}
+
 async function tryJoinRoom(roomId, name) {
   try {
+    await socket.whenReady();
     const result = await socket.emit('join_room', { roomId, playerName: name });
     joinCallback(result);
   } catch (err) {

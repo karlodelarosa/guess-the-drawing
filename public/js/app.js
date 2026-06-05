@@ -82,8 +82,15 @@ function init() {
   // Socket events
   registerSocketEvents();
 
-  // Attempt reconnect if session exists
+  // Attempt reconnect if session exists (wait for socket first)
   attemptReconnect();
+}
+
+/** Clear room from URL when leaving. */
+function clearRoomFromUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('room');
+  history.replaceState(null, '', url.pathname + url.search);
 }
 
 /** Handle successful room join. */
@@ -158,6 +165,7 @@ async function handlePlayAgain() {
 function handleLeave() {
   socket.emit('leave_room').catch(() => {});
   clearSession();
+  clearRoomFromUrl();
   roomState = null;
   myPlayer = null;
   results.hide();
@@ -238,34 +246,40 @@ function registerSocketEvents() {
     canvas.clear();
   });
 
-  // Reconnect on socket disconnect/reconnect (mid-game)
-  const tryReconnect = () => {
+  // Reconnect on socket disconnect/reconnect (mid-game only)
+  const tryReconnect = async () => {
+    if (!roomState) return;
     const session = getSession();
     if (!session.roomId || !session.playerName) return;
-    socket.emit('reconnect_room', {
-      roomId: session.roomId,
-      playerName: session.playerName,
-    }).then((result) => {
+    try {
+      await socket.whenReady();
+      const result = await socket.emit('reconnect_room', {
+        roomId: session.roomId,
+        playerName: session.playerName,
+      });
       handleJoined(result);
       showToast('Reconnected!', 'success');
-    }).catch(() => {});
+    } catch {
+      // Room may have ended — stay on current screen
+    }
   };
 
-  socket.on('connect', () => {
-    if (roomState) tryReconnect();
-  });
-
   socket.on('reconnected', () => {
-    if (roomState) tryReconnect();
+    tryReconnect();
   });
 }
 
-/** Try to reconnect to a previous session. */
+/** Try to reconnect to a previous session (page refresh, no ?room in URL). */
 async function attemptReconnect() {
   const session = getSession();
   if (!session.roomId || !session.playerName) return;
 
+  // If URL has a room param, let lobby auto-join handle it
+  const urlRoom = new URLSearchParams(window.location.search).get('room');
+  if (urlRoom) return;
+
   try {
+    await socket.whenReady();
     const result = await socket.emit('reconnect_room', {
       roomId: session.roomId,
       playerName: session.playerName,
@@ -274,9 +288,11 @@ async function attemptReconnect() {
     if (result.reconnected) {
       showToast('Reconnected!', 'success');
     }
-  } catch {
-    // Room may no longer exist — stay on lobby
-    clearSession();
+  } catch (err) {
+    // Only clear session if the room truly doesn't exist
+    if (err.message === 'Room not found.') {
+      clearSession();
+    }
   }
 }
 

@@ -46,7 +46,8 @@ class RoomManager {
    * @returns {Room|null}
    */
   getRoom(roomId) {
-    return this.rooms.get(roomId.toUpperCase()) || null;
+    if (!roomId || typeof roomId !== 'string') return null;
+    return this.rooms.get(roomId.trim().toUpperCase()) || null;
   }
 
   /** Wire room broadcast callbacks to Socket.IO. */

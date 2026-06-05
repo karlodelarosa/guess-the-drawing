@@ -7,6 +7,7 @@ let ws = null;
 let socketId = null;
 let connected = false;
 let reconnectTimer = null;
+let readyResolvers = [];
 
 /** Event listeners registry. */
 const listeners = new Map();
@@ -20,19 +21,36 @@ function getWsUrl() {
   return `${protocol}//${window.location.host}/ws`;
 }
 
+/** Resolve when the socket is open and has a server-assigned ID. */
+export function whenReady() {
+  if (connected && socketId) return Promise.resolve();
+  return new Promise((resolve) => {
+    readyResolvers.push(resolve);
+  });
+}
+
+function notifyReady() {
+  if (!connected || !socketId) return;
+  const resolvers = readyResolvers;
+  readyResolvers = [];
+  resolvers.forEach((r) => r());
+}
+
 export function connect() {
   if (ws && connected) return ws;
+
+  // Avoid duplicate connections while reconnecting
+  if (ws && ws.readyState === WebSocket.CONNECTING) return ws;
 
   ws = new WebSocket(getWsUrl());
 
   ws.addEventListener('open', () => {
     connected = true;
-    console.log('[socket] connected');
+    console.log('[socket] open');
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    // Server sends socketId in first message — don't fire 'connect' until then
   });
 
   ws.addEventListener('message', (event) => {
@@ -46,8 +64,9 @@ export function connect() {
     if (msg.type === 'connected') {
       const wasConnected = !!socketId;
       socketId = msg.socketId;
+      console.log('[socket] ready', socketId);
       fire('connect');
-      // Re-join room after unexpected reconnect
+      notifyReady();
       if (wasConnected) fire('reconnected');
       return;
     }
@@ -73,7 +92,6 @@ export function connect() {
     console.log('[socket] disconnected');
     fire('disconnect');
 
-    // Auto-reconnect after 2s
     reconnectTimer = setTimeout(() => {
       ws = null;
       connect();
@@ -93,42 +111,25 @@ function fire(event, data) {
 }
 
 export function getSocket() {
-  return { id: socketId, connected };
+  return { id: socketId, connected: connected && !!socketId };
 }
 
-/**
- * Register an event listener.
- * @param {string} event
- * @param {Function} handler
- */
 export function on(event, handler) {
   if (!listeners.has(event)) listeners.set(event, []);
   listeners.get(event).push(handler);
 }
 
-/**
- * Emit with callback wrapped in a Promise.
- * @param {string} event
- * @param {object} data
- * @returns {Promise<any>}
- */
 export function emit(event, data = {}) {
-  return new Promise((resolve, reject) => {
-    if (!ws || !connected) {
-      return reject(new Error('Not connected'));
-    }
-
+  return whenReady().then(() => new Promise((resolve, reject) => {
     const id = String(++msgCounter);
     pendingAcks.set(id, { resolve, reject });
-
     ws.send(JSON.stringify({ type: 'emit', event, data, id }));
 
-    // Timeout after 10s
     setTimeout(() => {
       if (pendingAcks.has(id)) {
         pendingAcks.delete(id);
         reject(new Error('Request timed out'));
       }
     }, 10_000);
-  });
+  }));
 }

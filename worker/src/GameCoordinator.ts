@@ -85,7 +85,7 @@ export class GameCoordinator extends DurableObject {
       return;
     }
 
-    const result = await handler(parsed.data as never);
+    const result = await handler((parsed.data || {}) as never);
 
     if (parsed.id) {
       if (result?.error) this._ack(ws, parsed.id, { error: result.error });

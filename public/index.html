@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Guess the Drawing</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Toast notifications container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ==================== LOBBY SCREEN ==================== -->
+  <div id="lobby-screen" class="screen active">
+    <div class="lobby-container">
+      <div class="logo">
+        <span class="logo-icon">🎨</span>
+        <h1>Guess the Drawing</h1>
+        <p class="tagline">Draw, guess, and have fun with friends!</p>
+      </div>
+
+      <div class="lobby-card">
+        <div class="form-group">
+          <label for="player-name">Your Name</label>
+          <input type="text" id="player-name" placeholder="Enter your name" maxlength="20" autocomplete="off">
+        </div>
+
+        <div class="lobby-actions">
+          <button id="btn-create-room" class="btn btn-primary btn-lg">Create Room</button>
+          <div class="divider"><span>or</span></div>
+          <div class="form-group">
+            <label for="room-code">Room Code</label>
+            <input type="text" id="room-code" placeholder="Enter room code" maxlength="6" autocomplete="off">
+          </div>
+          <button id="btn-join-room" class="btn btn-secondary btn-lg">Join Room</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== WAITING ROOM SCREEN ==================== -->
+  <div id="waiting-screen" class="screen">
+    <div class="waiting-container">
+      <div class="waiting-header">
+        <h2>Waiting Room</h2>
+        <div class="room-info">
+          <span class="room-label">Room Code:</span>
+          <span id="display-room-id" class="room-code"></span>
+          <button id="btn-copy-link" class="btn btn-icon" title="Copy invite link">📋</button>
+        </div>
+      </div>
+
+      <div class="waiting-body">
+        <div class="player-list-panel">
+          <h3>Players <span id="player-count" class="badge">0</span></h3>
+          <ul id="waiting-player-list" class="player-list"></ul>
+        </div>
+
+        <div class="waiting-actions">
+          <p id="waiting-status" class="status-text">Waiting for host to start...</p>
+          <button id="btn-start-game" class="btn btn-primary btn-lg hidden">Start Game</button>
+          <button id="btn-leave-room" class="btn btn-ghost">Leave Room</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== GAME SCREEN ==================== -->
+  <div id="game-screen" class="screen">
+    <header class="game-header">
+      <div class="header-left">
+        <span id="round-info" class="round-info">Round 1/3</span>
+        <span id="word-hint" class="word-hint hidden"></span>
+      </div>
+      <div class="header-center">
+        <div id="timer" class="timer">
+          <div class="timer-bar" id="timer-bar"></div>
+          <span id="timer-text" class="timer-text">1:20</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <span id="drawer-name" class="drawer-name"></span>
+        <button id="btn-leave-game" class="btn btn-ghost btn-sm">Leave</button>
+      </div>
+    </header>
+
+    <main class="game-main">
+      <!-- Player list sidebar -->
+      <aside class="sidebar sidebar-left">
+        <h3>Players</h3>
+        <ul id="game-player-list" class="player-list scoreboard-list"></ul>
+      </aside>
+
+      <!-- Canvas area -->
+      <section class="canvas-section">
+        <div class="canvas-toolbar" id="canvas-toolbar">
+          <div class="tool-group">
+            <label>Color</label>
+            <input type="color" id="brush-color" value="#000000">
+          </div>
+          <div class="tool-group">
+            <label>Size</label>
+            <div class="brush-sizes">
+              <button class="brush-size-btn" data-size="2" title="Small">●</button>
+              <button class="brush-size-btn active" data-size="5" title="Medium">●</button>
+              <button class="brush-size-btn" data-size="10" title="Large">●</button>
+              <button class="brush-size-btn" data-size="18" title="XL">●</button>
+            </div>
+          </div>
+          <div class="tool-group tool-actions">
+            <button id="btn-undo" class="btn btn-tool" title="Undo">↩</button>
+            <button id="btn-clear" class="btn btn-tool" title="Clear canvas">🗑</button>
+          </div>
+        </div>
+        <div class="canvas-wrapper">
+          <canvas id="drawing-canvas"></canvas>
+          <div id="spectator-overlay" class="spectator-overlay hidden">
+            <span>👀 Spectating</span>
+          </div>
+          <div id="reveal-overlay" class="reveal-overlay hidden">
+            <span class="reveal-label">The word was:</span>
+            <span id="reveal-word" class="reveal-word"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Chat sidebar -->
+      <aside class="sidebar sidebar-right">
+        <h3>Chat</h3>
+        <div id="chat-messages" class="chat-messages"></div>
+        <div id="typing-indicator" class="typing-indicator"></div>
+        <form id="chat-form" class="chat-form">
+          <input type="text" id="chat-input" placeholder="Type your guess..." maxlength="100" autocomplete="off">
+          <button type="submit" class="btn btn-primary btn-sm">Send</button>
+        </form>
+      </aside>
+    </main>
+  </div>
+
+  <!-- ==================== RESULTS MODAL ==================== -->
+  <div id="results-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="trophy">🏆</span>
+        <h2>Game Over!</h2>
+        <p id="winner-text" class="winner-text"></p>
+      </div>
+      <ol id="final-rankings" class="final-rankings"></ol>
+      <div class="modal-actions">
+        <button id="btn-play-again" class="btn btn-primary btn-lg hidden">Play Again</button>
+        <button id="btn-back-lobby" class="btn btn-secondary">Back to Lobby</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Client modules -->
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

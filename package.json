@@ -1,0 +1,23 @@
+{
+  "name": "guess-the-drawing",
+  "version": "1.0.0",
+  "description": "Multiplayer drawing and guessing game similar to Scribble.io",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "dev:worker": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "keywords": ["drawing", "multiplayer", "socket.io", "game"],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250320.0",
+    "typescript": "^5.8.2",
+    "wrangler": "^4.14.0"
+  }
+}

@@ -79,6 +79,14 @@ export function onSubmit(callback) {
     callback(msg);
     input.value = '';
   });
+
+  // Keep guess input visible above mobile keyboard
+  chatInput().addEventListener('focus', () => {
+    if (!window.matchMedia('(max-width: 768px)').matches) return;
+    setTimeout(() => {
+      chatForm().scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 300);
+  });
 }
 
 /** Register typing events. */

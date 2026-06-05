@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Guess the Drawing</title>
   <link rel="stylesheet" href="/css/styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,21 +22,32 @@
         <p class="tagline">Draw, guess, and have fun with friends!</p>
       </div>
 
+      <div id="invite-banner" class="invite-banner hidden">
+        <span class="invite-banner-icon">📲</span>
+        <div>
+          <strong>You've been invited!</strong>
+          <p>Enter your name below to join room <span id="invite-room-code" class="invite-room-code"></span></p>
+        </div>
+      </div>
+
       <div class="lobby-card">
         <div class="form-group">
           <label for="player-name">Your Name</label>
-          <input type="text" id="player-name" placeholder="Enter your name" maxlength="20" autocomplete="off">
+          <input type="text" id="player-name" placeholder="Enter your name" maxlength="20" autocomplete="name">
         </div>
 
         <div class="lobby-actions">
           <button id="btn-create-room" class="btn btn-primary btn-lg">Create Room</button>
-          <div class="divider"><span>or</span></div>
+          <div id="lobby-divider" class="divider"><span>or</span></div>
           <div class="form-group">
             <label for="room-code">Room Code</label>
-            <input type="text" id="room-code" placeholder="Enter room code" maxlength="6" autocomplete="off">
+            <input type="text" id="room-code" placeholder="Enter room code" maxlength="6" autocomplete="off" autocapitalize="characters">
           </div>
           <button id="btn-join-room" class="btn btn-secondary btn-lg">Join Room</button>
+          <button id="btn-join-invite" class="btn btn-primary btn-lg hidden">Join Game</button>
         </div>
+
+        <p id="connection-status" class="connection-status">Connecting…</p>
       </div>
     </div>
   </div>
@@ -78,7 +89,6 @@
     <header class="game-header">
       <div class="header-left">
         <span id="round-info" class="round-info">Round 1/3</span>
-        <span id="word-hint" class="word-hint hidden"></span>
       </div>
       <div class="header-center">
         <div id="timer" class="timer">
@@ -128,6 +138,11 @@
         </div>
         <div class="canvas-wrapper">
           <canvas id="drawing-canvas"></canvas>
+          <div id="draw-word-overlay" class="draw-word-overlay hidden">
+            <span class="draw-word-label">Draw this</span>
+            <span id="draw-word" class="draw-word"></span>
+            <span id="draw-category" class="draw-category"></span>
+          </div>
           <div id="spectator-overlay" class="spectator-overlay hidden">
             <span>👀 Spectating</span>
           </div>

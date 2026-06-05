@@ -43,7 +43,6 @@ function createHandlers(roomManager, ctx) {
 
       room.addSystemMessage('Game started! Type your guess in the chat box and press Send.');
       roomManager.broadcastRoomState(room);
-      roomManager.broadcast?.emitToRoom(room.id, 'round_start', room.game.toJSON(null));
       return { success: true };
     },
 

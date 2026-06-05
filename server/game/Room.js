@@ -177,7 +177,15 @@ class Room {
         );
         this._broadcastEvent('chat_message', entry);
       }
-      this._broadcastEvent(event, this.game.toJSON(null));
+      if (event === 'round_start' && this._emitToPlayer) {
+        for (const [socketId, player] of this.players) {
+          if (player.connected) {
+            this._emitToPlayer(socketId, event, this.game.toJSON(socketId));
+          }
+        }
+      } else {
+        this._broadcastEvent(event, this.game.toJSON(null));
+      }
       if (this._broadcastRoomState) this._broadcastRoomState();
       if (this._onPersist) this._onPersist();
     };

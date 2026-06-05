@@ -24,6 +24,17 @@ export function clearSession() {
   sessionStorage.removeItem(KEYS.ROOM_ID);
 }
 
+/** Drop stale saved room when opening a different invite link. */
+export function syncSessionWithInviteUrl() {
+  const urlRoom = getRoomFromURL();
+  if (!urlRoom) return;
+
+  const savedRoom = sessionStorage.getItem(KEYS.ROOM_ID);
+  if (savedRoom && savedRoom !== urlRoom) {
+    sessionStorage.removeItem(KEYS.ROOM_ID);
+  }
+}
+
 /** Parse room ID from URL query string or path. */
 export function getRoomFromURL() {
   const params = new URLSearchParams(window.location.search);

@@ -83,9 +83,21 @@ export class GameCoordinator extends DurableObject {
     return new Response(null, { status: 101, webSocket: client });
   }
 
+  /** Keep WebSocket session.roomId in sync with RoomManager (fixes missed broadcasts). */
+  _syncSessionRoom(ws: WebSocket, session: Session) {
+    const room = this.roomManager.getRoomForSocket(session.socketId);
+    const roomId = room?.id ?? null;
+    if (session.roomId !== roomId) {
+      session.roomId = roomId;
+      ws.serializeAttachment(session);
+    }
+  }
+
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     const session = ws.deserializeAttachment() as Session;
     if (!session) return;
+
+    this._syncSessionRoom(ws, session);
 
     let parsed: { type: string; event?: string; data?: unknown; id?: string };
     try {
@@ -170,10 +182,16 @@ export class GameCoordinator extends DurableObject {
     }
   }
 
+  _socketInRoom(socketId: string, roomId: string): boolean {
+    const room = this.roomManager.getRoom(roomId);
+    return room?.players.has(socketId) ?? false;
+  }
+
   _emitToRoom(roomId: string, event: string, data: unknown) {
     for (const ws of this.ctx.getWebSockets()) {
       const session = this._getSession(ws);
-      if (session?.roomId === roomId) {
+      if (!session?.socketId) continue;
+      if (session.roomId === roomId || this._socketInRoom(session.socketId, roomId)) {
         this._emitEvent(ws, event, data);
       }
     }
@@ -182,7 +200,8 @@ export class GameCoordinator extends DurableObject {
   _emitToRoomExcept(roomId: string, exceptSocketId: string, event: string, data: unknown) {
     for (const ws of this.ctx.getWebSockets()) {
       const session = this._getSession(ws);
-      if (session?.roomId === roomId && session.socketId !== exceptSocketId) {
+      if (!session?.socketId || session.socketId === exceptSocketId) continue;
+      if (session.roomId === roomId || this._socketInRoom(session.socketId, roomId)) {
         this._emitEvent(ws, event, data);
       }
     }

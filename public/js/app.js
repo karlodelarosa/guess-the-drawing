@@ -10,8 +10,8 @@ import * as results from './screens/results.js';
 import * as chat from './ui/chat.js';
 import * as canvas from './drawing/canvas.js';
 import { showToast } from './ui/toast.js';
-import { saveSession, getSession, clearSession } from './utils/storage.js';
-import { setRoomInUrl } from './utils/config.js';
+import { saveSession, getSession, clearSession, syncSessionWithInviteUrl } from './utils/storage.js';
+import { maybeRedirectToProduction, setRoomInUrl } from './utils/config.js';
 import { playCorrectGuess, playRoundStart, playRoundEnd } from './utils/sounds.js';
 
 let roomState = null;
@@ -37,20 +37,37 @@ function clearRoomFromUrl() {
 }
 
 function init() {
+  if (maybeRedirectToProduction()) return;
+
+  syncSessionWithInviteUrl();
+
   // Re-establish server room mapping after every WebSocket (re)connect
   socket.setBeforeReadyHook(async ({ isReconnect }) => {
     const session = getSession();
-    if (!session.roomId || !session.playerName) return;
+    if (!session.playerName) return;
 
-    // Let lobby handle fresh invite-link opens
-    const urlRoom = new URLSearchParams(window.location.search).get('room');
+    const urlRoom = new URLSearchParams(window.location.search).get('room')?.toUpperCase();
+
+    // Fresh invite-link open — lobby handles join for the URL room
     if (!isReconnect && urlRoom) return;
 
+    const roomId = urlRoom || session.roomId;
+    if (!roomId) return;
+
     try {
-      const result = await socket.request('reconnect_room', {
-        roomId: session.roomId,
-        playerName: session.playerName,
-      });
+      let result;
+      try {
+        result = await socket.request('reconnect_room', {
+          roomId,
+          playerName: session.playerName,
+        });
+      } catch (err) {
+        if (err.message !== 'Room not found.') throw err;
+        result = await socket.request('join_room', {
+          roomId,
+          playerName: session.playerName,
+        });
+      }
       handleJoined(result);
     } catch (err) {
       if (err.message === 'Room not found.') {
@@ -59,6 +76,7 @@ function init() {
         roomState = null;
         myPlayer = null;
         showScreen('lobby');
+        showToast('Room expired or was closed.', 'warning');
       }
     }
   });
@@ -218,7 +236,12 @@ function registerSocketEvents() {
     playRoundStart();
     gameScreen.handleRoundStart();
     if (roomState) {
-      roomState.game = gameState;
+      // round_start is broadcast without the secret word — keep word from room_state
+      roomState.game = {
+        ...gameState,
+        word: gameState.word ?? roomState.game?.word ?? null,
+        category: gameState.category ?? roomState.game?.category ?? null,
+      };
       updateGameUI();
     }
     showToast('New round started!', 'info');

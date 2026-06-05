@@ -232,3 +232,22 @@ export function showReveal(word) {
 export function hideReveal() {
   document.getElementById('reveal-overlay').classList.add('hidden');
 }
+
+/** Show the word the drawer must draw (overlay on canvas). */
+export function showDrawWord(word, category) {
+  const overlay = document.getElementById('draw-word-overlay');
+  document.getElementById('draw-word').textContent = word || '';
+  const categoryEl = document.getElementById('draw-category');
+  if (category) {
+    categoryEl.textContent = category;
+    categoryEl.classList.remove('hidden');
+  } else {
+    categoryEl.textContent = '';
+    categoryEl.classList.add('hidden');
+  }
+  overlay.classList.remove('hidden');
+}
+
+export function hideDrawWord() {
+  document.getElementById('draw-word-overlay').classList.add('hidden');
+}

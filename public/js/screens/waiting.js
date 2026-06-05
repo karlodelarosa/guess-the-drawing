@@ -58,7 +58,7 @@ export function init({ onStart, onLeave }) {
 
   document.getElementById('btn-copy-link').addEventListener('click', () => {
     const url = getInviteUrl(currentRoomId);
-    copyText(url, 'Invite link copied! Share with friends on their phones.');
+    copyText(url, 'Invite link copied! Send the full link to friends on their phones.');
   });
 
   document.getElementById('btn-copy-code').addEventListener('click', () => {

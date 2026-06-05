@@ -67,6 +67,9 @@ class RoomManager {
     room._broadcastEvent = (event, data) => {
       this.broadcast?.emitToRoom(room.id, event, data);
     };
+    room._emitToPlayer = (socketId, event, data) => {
+      this.broadcast?.emitToPlayer(socketId, event, data);
+    };
     room._broadcastRoomState = () => this._broadcastRoomState(room);
     room._onPersist = () => this.onPersist?.();
   }

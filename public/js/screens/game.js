@@ -41,7 +41,7 @@ export function update(roomState, myPlayer, myId) {
 
   if (isDrawer && game.phase === 'drawing') {
     drawerBanner.classList.remove('hidden', 'guesser-mode');
-    drawerBannerText.textContent = '✏️ Your turn to draw! Press "Done Drawing" when finished.';
+    drawerBannerText.textContent = '✏️ Your turn to draw! The word is on the canvas — press "Done Drawing" when finished.';
     doneBtn.classList.remove('hidden');
   } else if (drawer && game.phase === 'drawing') {
     drawerBanner.classList.remove('hidden');
@@ -54,13 +54,11 @@ export function update(roomState, myPlayer, myId) {
     doneBtn.classList.add('hidden');
   }
 
-  // Word hint (only visible to drawer during drawing phase)
-  const wordHint = document.getElementById('word-hint');
-  if (game.word && game.phase === 'drawing') {
-    wordHint.textContent = `Draw: ${game.word}`;
-    wordHint.classList.remove('hidden');
+  // Word prompt on canvas (drawer only)
+  if (isDrawer && game.word && game.phase === 'drawing') {
+    canvas.showDrawWord(game.word, game.category);
   } else {
-    wordHint.classList.add('hidden');
+    canvas.hideDrawWord();
   }
 
   // Scoreboard
@@ -98,6 +96,13 @@ export function update(roomState, myPlayer, myId) {
   } else {
     stopTimer();
   }
+
+  // Mobile layout: pin guess input for non-drawers
+  const gameScreen = document.getElementById('game-screen');
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  gameScreen.classList.toggle('mobile-drawer', isMobile && isDrawer);
+  gameScreen.classList.toggle('mobile-guesser', isMobile && !isDrawer && !isSpectator);
+  gameScreen.classList.toggle('mobile-spectator', isMobile && isSpectator);
 
   return {
     isDrawer,
@@ -145,6 +150,7 @@ function formatTime(ms) {
 /** Handle round end reveal. */
 export function handleRoundEnd(data) {
   stopTimer();
+  canvas.hideDrawWord();
   canvas.clear();
   canvas.showReveal(data.word);
   document.getElementById('btn-done-drawing').classList.add('hidden');
@@ -153,6 +159,7 @@ export function handleRoundEnd(data) {
 /** Handle new round start. */
 export function handleRoundStart() {
   canvas.hideReveal();
+  canvas.hideDrawWord();
   canvas.clear();
 }
 
@@ -160,5 +167,6 @@ export function handleRoundStart() {
 export function handleGameEnd() {
   stopTimer();
   canvas.setCanDraw(false);
+  canvas.hideDrawWord();
   document.getElementById('btn-done-drawing').classList.add('hidden');
 }

@@ -20,7 +20,7 @@ function generateId(): string {
 export class GameCoordinator extends DurableObject {
   roomManager: InstanceType<typeof RoomManager>;
 
-  constructor(ctx: DurableObjectState, _env: unknown) {
+  constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env);
     this.roomManager = new RoomManager();
 
